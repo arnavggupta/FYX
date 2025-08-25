@@ -1,49 +1,59 @@
-import sqlite3 from 'sqlite3';
-import path from 'path';
+import { getRedis } from './redis';
 
-const dbPath = path.join(process.cwd(), 'weather.db');
-const db = new sqlite3.Database(dbPath);
+export interface CityPreference {
+  id: string;
+  name: string;
+  country: string;
+  lat: number;
+  lon: number;
+  addedAt: number;
+}
 
+export class DatabaseService {
+  private static CITIES_KEY = 'cities';
 
-export const initDB = () => {
-  return new Promise<void>((resolve, reject) => {
-    db.serialize(() => {
-   
-      db.run(`
-        CREATE TABLE IF NOT EXISTS cities (
-          id TEXT PRIMARY KEY,
-          name TEXT NOT NULL,
-          country TEXT NOT NULL,
-          lat REAL NOT NULL,
-          lon REAL NOT NULL,
-          added_at INTEGER DEFAULT (strftime('%s', 'now'))
-        )
-      `);
+  static async getCities(): Promise<CityPreference[]> {
+    try {
+      const redis = getRedis();
+      const citiesData = await redis.get(this.CITIES_KEY);
+      return citiesData ? JSON.parse(citiesData) : [];
+    } catch (error) {
+      console.error('Error getting cities:', error);
+      return [];
+    }
+  }
 
- 
-      db.run(`
-        CREATE TABLE IF NOT EXISTS weather_cache (
-          city TEXT PRIMARY KEY,
-          data TEXT NOT NULL,
-          timestamp INTEGER NOT NULL,
-          expires_at INTEGER NOT NULL
-        )
-      `);
+  static async addCity(city: CityPreference): Promise<CityPreference> {
+    try {
+      const redis = getRedis();
+      const cities = await this.getCities();
+      const existingIndex = cities.findIndex(c => c.id === city.id);
+      
+      if (existingIndex >= 0) {
+        cities[existingIndex] = city;
+      } else {
+        cities.unshift(city);
+      }
+      
+      await redis.set(this.CITIES_KEY, JSON.stringify(cities));
+      return city;
+    } catch (error) {
+      console.error('Error adding city:', error);
+      throw new Error('Failed to add city');
+    }
+  }
 
-     
-      db.run(`
-        CREATE TABLE IF NOT EXISTS forecast_cache (
-          city TEXT PRIMARY KEY,
-          data TEXT NOT NULL,
-          timestamp INTEGER NOT NULL,
-          expires_at INTEGER NOT NULL
-        )
-      `, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-  });
-};
+  static async removeCity(cityId: string): Promise<void> {
+    try {
+      const redis = getRedis();
+      const cities = await this.getCities();
+      const filteredCities = cities.filter(city => city.id !== cityId);
+      await redis.set(this.CITIES_KEY, JSON.stringify(filteredCities));
+    } catch (error) {
+      console.error('Error removing city:', error);
+      throw new Error('Failed to remove city');
+    }
+  }
+}
 
-export default db;
+export default DatabaseService;

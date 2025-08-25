@@ -1,85 +1,75 @@
-import db from './db';
+import { getRedis } from './redis';
 
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
-
-// Define a type for the structure of a cache row in the database
-interface CacheRow {
-  data: string; // The data is stored as a JSON string
-  expires_at: number;
-}
+const CACHE_DURATION = 10 * 60; // 10 minutes in seconds
 
 export class CacheManager {
-
-  /**
-   * Retrieves an item from the cache.
-   * Uses generics <T> to allow the caller to specify the expected return type.
-   * @param key The key of the item to retrieve.
-   * @param table The cache table to query.
-   * @returns A promise that resolves to the parsed data of type T, or null if not found.
-   */
-  static async get<T>(key: string, table: 'weather_cache' | 'forecast_cache'): Promise<T | null> {
-    return new Promise((resolve, reject) => {
-      const now = Date.now();
-      db.get(
-        `SELECT data, expires_at FROM ${table} WHERE city = ? AND expires_at > ?`,
-        [key, now],
-        (err, row: CacheRow | undefined) => {
-          if (err) {
-            reject(err);
-          } else if (row) {
-            // Parse the JSON string and cast it to the expected type T
-            resolve(JSON.parse(row.data) as T);
-          } else {
-            resolve(null);
-          }
-        }
-      );
-    });
+  private static getWeatherKey(city: string) {
+    return `weather:${city.toLowerCase()}`;
   }
 
-  /**
-   * Stores an item in the cache.
-   * Uses generics <T> to accept any data type for storage.
-   * @param key The key to store the data under.
-   * @param data The data to be stored. It will be stringified.
-   * @param table The cache table to store the data in.
-   * @returns A promise that resolves when the operation is complete.
-   */
-  static async set<T>(
-    key: string, 
-    data: T, 
-    table: 'weather_cache' | 'forecast_cache'
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const now = Date.now();
-      const expiresAt = now + CACHE_DURATION;
-      
-      db.run(
-        `INSERT OR REPLACE INTO ${table} (city, data, timestamp, expires_at) VALUES (?, ?, ?, ?)`,
-        [key, JSON.stringify(data), now, expiresAt],
-        (err) => {
-          if (err) reject(err);
-          else resolve();
-        }
-      );
-    });
+  private static getForecastKey(city: string) {
+    return `forecast:${city.toLowerCase()}`;
   }
 
-  /**
-   * Clears both cache tables.
-   * @returns A promise that resolves when both tables are cleared.
-   */
+  static async getWeather(city: string): Promise<any> {
+    try {
+      const redis = getRedis();
+      const key = this.getWeatherKey(city);
+      const data = await redis.get(key);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Error getting weather cache:', error);
+      return null;
+    }
+  }
+
+  static async setWeather(city: string, data: any): Promise<void> {
+    try {
+      const redis = getRedis();
+      const key = this.getWeatherKey(city);
+      await redis.setex(key, CACHE_DURATION, JSON.stringify(data));
+    } catch (error) {
+      console.error('Error setting weather cache:', error);
+    }
+  }
+
+  static async getForecast(city: string): Promise<any> {
+    try {
+      const redis = getRedis();
+      const key = this.getForecastKey(city);
+      const data = await redis.get(key);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Error getting forecast cache:', error);
+      return null;
+    }
+  }
+
+  static async setForecast(city: string, data: any): Promise<void> {
+    try {
+      const redis = getRedis();
+      const key = this.getForecastKey(city);
+      await redis.setex(key, CACHE_DURATION, JSON.stringify(data));
+    } catch (error) {
+      console.error('Error setting forecast cache:', error);
+    }
+  }
+
   static async clear(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      db.run('DELETE FROM weather_cache', (err) => {
-        if (err) {
-          return reject(err);
-        }
-        db.run('DELETE FROM forecast_cache', (err) => {
-          if (err) return reject(err);
-          resolve();
-        });
-      });
-    });
+    try {
+      const redis = getRedis();
+      // Get all keys and delete weather/forecast cache
+      const weatherKeys = await redis.keys('weather:*');
+      const forecastKeys = await redis.keys('forecast:*');
+      
+      if (weatherKeys.length > 0) {
+        await redis.del(...weatherKeys);
+      }
+      if (forecastKeys.length > 0) {
+        await redis.del(...forecastKeys);
+      }
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+    }
   }
 }

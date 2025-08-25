@@ -1,48 +1,35 @@
-import { NextResponse } from 'next/server';
-import { WeatherService } from '../../../../lib/weather'; 
-import { CacheManager } from '../../../../lib/cache'; 
-import { initDB } from '../../../../lib/db'; 
-
+import { WeatherService } from '../../../../lib/weather';
+import { CacheManager } from '../../../../lib/cache';
 
 export async function GET(
-  req: Request,
+  request: Request,
   { params }: { params: Promise<{ city: string }> }
 ) {
   try {
-    await initDB();
     const { city } = await params;
 
     if (!city) {
-      return NextResponse.json(
-        { success: false, error: 'City parameter is required' },
-        { status: 400 }
-      );
+      return Response.json({ success: false, error: 'City parameter required' }, { status: 400 });
     }
-    
-    const decodedCity = decodeURIComponent(city);
 
-
-    const cachedData = await CacheManager.get(decodedCity, 'weather_cache');
+    // Try to get from cache first
+    const cachedData = await CacheManager.getWeather(city);
     if (cachedData) {
-      return NextResponse.json({ success: true, data: cachedData, cached: true });
+      return Response.json({ success: true, data: cachedData, cached: true });
     }
 
-   
-    const weatherData = await WeatherService.getCurrentWeather(decodedCity);
+    // Fetch fresh data
+    const weatherData = await WeatherService.getCurrentWeather(city);
     
- 
-    await CacheManager.set(decodedCity, weatherData, 'weather_cache');
+    // Cache the data
+    await CacheManager.setWeather(city, weatherData);
     
-    return NextResponse.json({ success: true, data: weatherData, cached: false });
-
+    return Response.json({ success: true, data: weatherData, cached: false });
   } catch (error) {
     console.error('Weather API Error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Internal server error' 
-      },
-      { status: 500 }
-    );
+    return Response.json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Internal server error' 
+    }, { status: 500 });
   }
 }

@@ -1,19 +1,11 @@
-import { NextResponse } from 'next/server';
-import { CacheManager } from '@/lib/cache';
-import { initDB } from '@/lib/db';
+import { CacheManager } from "@/lib/cache";
 
-
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    await initDB();
     await CacheManager.clear();
-    
-    return NextResponse.json({ success: true, message: 'Cache cleared successfully' });
+    return Response.json({ success: true, message: 'Cache cleared successfully' });
   } catch (error) {
     console.error('Cache clear error:', error);
-    return NextResponse.json(
-        { success: false, error: 'Failed to clear cache' },
-        { status: 500 }
-    );
+    return Response.json({ success: false, error: 'Failed to clear cache' }, { status: 500 });
   }
 }

@@ -1,106 +1,51 @@
-import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { WeatherService } from '../../../lib/weather';
-import db, { initDB } from '../../../lib/db';
+import DatabaseService from '../../../lib/db';
 
-interface City {
-  id: string;
-  name: string;
-  country: string;
-  lat: number;
-  lon: number;
-  added_at?: string; // This is added by the DB
-}
-type DBParams = (string | number | null)[];
-
-function runQuery(query: string, params: DBParams = []): Promise<{ lastID: number; changes: number }> {
-  return new Promise((resolve, reject) => {
-    db.run(query, params, function (err) {
-      if (err) {
-        return reject(err);
-      }
-      
-      resolve({ lastID: this.lastID, changes: this.changes });
-    });
-  });
-}
-
-
-function getQuery(query: string, params: DBParams = []): Promise<City[]> {
-    return new Promise((resolve, reject) => {
-        db.all(query, params, (err, rows) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve(rows as City[]);
-        });
-    });
-}
-
-
-
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    await initDB();
-    const rows = await getQuery('SELECT * FROM cities ORDER BY added_at DESC');
-    return NextResponse.json({ success: true, data: rows });
+    const cities = await DatabaseService.getCities();
+    return Response.json({ success: true, data: cities });
   } catch (error) {
-    console.error('Cities GET Error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Get cities error:', error);
+    return Response.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
 
-
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { query } = await req.json();
-
+    const { query } = await request.json();
+    
     if (!query) {
-      return NextResponse.json(
-        { success: false, error: 'Query required' },
-        { status: 400 }
-      );
+      return Response.json({ success: false, error: 'Query required' }, { status: 400 });
     }
 
-   
     const cities = await WeatherService.searchCities(query);
-    return NextResponse.json({ success: true, data: cities });
+    return Response.json({ success: true, data: cities });
   } catch (error) {
-    console.error('Cities POST Error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Search cities error:', error);
+    return Response.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
 
-
-export async function PUT(req: Request) {
+export async function PUT(request: NextRequest) {
   try {
-    await initDB();
-    const { name, country, lat, lon } = await req.json();
+    const { name, country, lat, lon } = await request.json();
     const id = `${lat}-${lon}`;
+    
+    const city = {
+      id,
+      name,
+      country,
+      lat,
+      lon,
+      addedAt: Date.now()
+    };
 
-    if (!name || !country || lat === undefined || lon === undefined) {
-        return NextResponse.json(
-            { success: false, error: 'Missing required city data' },
-            { status: 400 }
-        );
-    }
-
-    await runQuery(
-      'INSERT OR REPLACE INTO cities (id, name, country, lat, lon) VALUES (?, ?, ?, ?, ?)',
-      [id, name, country, lat, lon]
-    );
-
-    return NextResponse.json({ success: true, data: { id, name, country, lat, lon } });
+    await DatabaseService.addCity(city);
+    return Response.json({ success: true, data: city });
   } catch (error) {
-    console.error('Cities PUT Error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to save city' },
-      { status: 500 }
-    );
+    console.error('Add city error:', error);
+    return Response.json({ success: false, error: 'Failed to save city' }, { status: 500 });
   }
 }

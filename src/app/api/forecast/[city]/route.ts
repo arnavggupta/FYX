@@ -1,48 +1,35 @@
-import { NextResponse } from 'next/server';
-import { WeatherService } from '../../../../lib/weather'; 
-import { CacheManager } from '../../../../lib/cache'; 
-import { initDB } from '../../../../lib/db'; 
-
+import { WeatherService } from '../../../../lib/weather';
+import { CacheManager } from '../../../../lib/cache';
 
 export async function GET(
-  req: Request,
+  request: Request,
   { params }: { params: Promise<{ city: string }> }
 ) {
   try {
-    await initDB();
     const { city } = await params;
 
     if (!city) {
-      return NextResponse.json(
-        { success: false, error: 'City parameter is required' },
-        { status: 400 }
-      );
+      return Response.json({ success: false, error: 'City parameter required' }, { status: 400 });
     }
-    
-    const decodedCity = decodeURIComponent(city);
 
-    // Try to get from cache first
-    const cachedData = await CacheManager.get(decodedCity, 'forecast_cache');
+    // Try cache first
+    const cachedData = await CacheManager.getForecast(city);
     if (cachedData) {
-      return NextResponse.json({ success: true, data: cachedData, cached: true });
+      return Response.json({ success: true, data: cachedData, cached: true });
     }
 
     // Fetch fresh data
-    const forecastData = await WeatherService.getForecast(decodedCity);
+    const forecastData = await WeatherService.getForecast(city);
     
-    // Cache the new data
-    await CacheManager.set(decodedCity, forecastData, 'forecast_cache');
+    // Cache the data
+    await CacheManager.setForecast(city, forecastData);
     
-    return NextResponse.json({ success: true, data: forecastData, cached: false });
-
+    return Response.json({ success: true, data: forecastData, cached: false });
   } catch (error) {
     console.error('Forecast API Error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Internal server error' 
-      },
-      { status: 500 }
-    );
+    return Response.json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Internal server error' 
+    }, { status: 500 });
   }
 }
