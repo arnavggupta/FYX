@@ -19,11 +19,11 @@ function runQuery(query: string, params: DBParams = []): Promise<{ lastID: numbe
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } } // Corrected type signature
 ) {
   try {
     await initDB();
-    const { id } = params;
+    const { id } = context.params; // Destructure params from the context object
 
     if (!id) {
       return NextResponse.json(
@@ -43,10 +43,11 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
 
-  } catch (error ) {
+  } catch (error) {
     console.error('Delete city error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
