@@ -1,103 +1,200 @@
-import Image from "next/image";
+"use client"
+import React, { useState, useEffect } from 'react';
+import Head from 'next/head';
+import { RefreshCw, MapPin } from 'lucide-react';
+import SearchBar from '../components/SearchBar';
+import WeatherCard from '@/components/weatherCard';
 
-export default function Home() {
+import ForecastCard from '@/components/ForeCastCard';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { WeatherData,ForecastData,CityPreference } from '@/types/weatherType';
+
+const Home: React.FC = () => {
+  const [cities, setCities] = useState<CityPreference[]>([]);
+  const [weatherData, setWeatherData] = useState<{ [key: string]: WeatherData }>({});
+  const [forecastData, setForecastData] = useState<{ [key: string]: ForecastData[] }>({});
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadCities();
+  }, []);
+
+  const loadCities = async () => {
+    try {
+      const response = await fetch('/api/cities');
+      const data = await response.json();
+      
+      if (data.success) {
+        setCities(data.data);
+        // Load weather data for each city  beacuse we need to show weathercard also 
+        for (const city of data.data) {
+          await loadWeatherData(city.name);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading cities:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadWeatherData = async (cityName: string) => {
+    try {
+      // Load current weather using open weather api 
+      const weatherResponse = await fetch(`/api/weather/${encodeURIComponent(cityName)}`);
+      const weatherResult = await weatherResponse.json();
+      
+      if (weatherResult.success) {
+        setWeatherData(prev => ({
+          ...prev,
+          [cityName]: weatherResult.data
+        }));
+      }
+
+      // Load forecast for next days 
+      const forecastResponse = await fetch(`/api/forecast/${encodeURIComponent(cityName)}`);
+      const forecastResult = await forecastResponse.json();
+      
+      if (forecastResult.success) {
+        setForecastData(prev => ({
+          ...prev,
+          [cityName]: forecastResult.data
+        }));
+      }
+    } catch (error) {
+      console.error(`Error loading weather data for ${cityName}:`, error);
+    }
+  };
+
+  const handleCityAdd = async (city: any) => {
+    setCities(prev => [...prev, {
+      id: city.id,
+      name: city.name,
+      country: city.country,
+      lat: city.lat,
+      lon: city.lon,
+      addedAt: Date.now()
+    }]);
+    
+    await loadWeatherData(city.name);
+  };
+
+  const handleCityRemove = async (cityId: string, cityName: string) => {
+    try {
+      const response = await fetch(`/api/cities/${cityId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        setCities(prev => prev.filter(city => city.id !== cityId));
+        setWeatherData(prev => {
+          const newData = { ...prev };
+          delete newData[cityName];
+          return newData;
+        });
+        setForecastData(prev => {
+          const newData = { ...prev };
+          delete newData[cityName];
+          return newData;
+        });
+      }
+    } catch (error) {
+      console.error('Error removing city:', error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    
+
+    try {
+      await fetch('/api/cache/clear', { method: 'POST' });
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+    }
+   
+    for (const city of cities) {
+      await loadWeatherData(city.name);
+    }
+    
+    setRefreshing(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <>
+      <Head>
+        <title>Weather Dashboard</title>
+        <meta name="description" content="A comprehensive weather dashboard with forecasts" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600">
+        <div className="container mx-auto px-4 py-8">
+         
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-white mb-2">Weather Dashboard</h1>
+            <p className="text-blue-100">Track weather conditions across multiple cities</p>
+          </div>
+
+          
+          <div className="flex flex-col md:flex-row items-center justify-between mb-8 space-y-4 md:space-y-0">
+            <SearchBar onCityAdd={handleCityAdd} />
+            
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center space-x-2 bg-black bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg transition-all duration-200 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              <span>{refreshing ? 'Refreshing...' : 'Refresh All'}</span>
+            </button>
+          </div>
+
+         
+          {cities.length === 0 ? (
+            <div className="text-center py-12">
+              <MapPin className="w-16 h-16 text-white opacity-50 mx-auto mb-4" />
+              <h2 className="text-2xl font-semibold text-white mb-2">No cities added yet</h2>
+              <p className="text-blue-100">Search and add cities to start tracking weather</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {cities.map((city,index) => (
+                <div key={index} className="space-y-4">
+                  {weatherData[city.name] ? (
+                    <WeatherCard
+                      weather={weatherData[city.name]}
+                      onRemove={() => handleCityRemove(city.id, city.name)}
+                    />
+                  ) : (
+                    <div className="bg-white rounded-xl shadow-lg p-6 animate-pulse">
+                      <div className="h-4 bg-gray-200 rounded mb-4"></div>
+                      <div className="h-8 bg-gray-200 rounded mb-4"></div>
+                      <div className="h-4 bg-gray-200 rounded"></div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+        
+          {Object.entries(forecastData).map(([cityName, forecasts]) => (
+            <ForecastCard key={cityName} forecasts={forecasts} city={cityName} />
+          ))}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+    </>
   );
-}
+};
+
+export default Home;
