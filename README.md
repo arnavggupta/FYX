@@ -21,6 +21,7 @@
    ```
    OPENWEATHER_API_KEY=your_api_key_here
    NEXT_PUBLIC_APP_URL=http://localhost:3000
+   REDIS_URL=your_redis_uri
    ```
 
 5. **Replace the default files with the code above**
@@ -39,7 +40,7 @@
  **Responsive design** - Works on desktop and mobile
  **Error handling** - Graceful error handling throughout
  **Real-time updates** - Refresh functionality
- **SQLite database** - Stores user preferences and cache
+ **Redis database** - Stores user preferences and cache
  **RESTful API** - Clean API endpoints
  **TypeScript** - Full type safety
 
