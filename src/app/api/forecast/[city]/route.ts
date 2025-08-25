@@ -35,7 +35,7 @@ export async function GET(
     
     return NextResponse.json({ success: true, data: forecastData, cached: false });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Forecast API Error:', error);
     return NextResponse.json(
       { 

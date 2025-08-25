@@ -2,8 +2,17 @@ import { NextResponse } from 'next/server';
 import { WeatherService } from '../../../lib/weather';
 import db, { initDB } from '../../../lib/db';
 
+interface City {
+  id: string;
+  name: string;
+  country: string;
+  lat: number;
+  lon: number;
+  added_at?: string; // This is added by the DB
+}
+type DBParams = (string | number | null)[];
 
-function runQuery(query: string, params: any[] = []): Promise<any> {
+function runQuery(query: string, params: DBParams = []): Promise<{ lastID: number; changes: number }> {
   return new Promise((resolve, reject) => {
     db.run(query, params, function (err) {
       if (err) {
@@ -16,13 +25,13 @@ function runQuery(query: string, params: any[] = []): Promise<any> {
 }
 
 
-function getQuery(query: string, params: any[] = []): Promise<any[]> {
+function getQuery(query: string, params: DBParams = []): Promise<City[]> {
     return new Promise((resolve, reject) => {
         db.all(query, params, (err, rows) => {
             if (err) {
                 return reject(err);
             }
-            resolve(rows);
+            resolve(rows as City[]);
         });
     });
 }
@@ -34,7 +43,7 @@ export async function GET(req: Request) {
     await initDB();
     const rows = await getQuery('SELECT * FROM cities ORDER BY added_at DESC');
     return NextResponse.json({ success: true, data: rows });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Cities GET Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
@@ -58,7 +67,7 @@ export async function POST(req: Request) {
    
     const cities = await WeatherService.searchCities(query);
     return NextResponse.json({ success: true, data: cities });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Cities POST Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
@@ -87,7 +96,7 @@ export async function PUT(req: Request) {
     );
 
     return NextResponse.json({ success: true, data: { id, name, country, lat, lon } });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Cities PUT Error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to save city' },

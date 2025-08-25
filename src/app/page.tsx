@@ -9,6 +9,15 @@ import ForecastCard from '@/components/ForeCastCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { WeatherData,ForecastData,CityPreference } from '@/types/weatherType';
 
+interface SearchResult {
+  id: string;
+  name: string;
+  country: string;
+  state?: string;
+  lat: number;
+  lon: number;
+}
+
 const Home: React.FC = () => {
   const [cities, setCities] = useState<CityPreference[]>([]);
   const [weatherData, setWeatherData] = useState<{ [key: string]: WeatherData }>({});
@@ -67,7 +76,7 @@ const Home: React.FC = () => {
     }
   };
 
-  const handleCityAdd = async (city: any) => {
+  const handleCityAdd = async (city: SearchResult) => {
     setCities(prev => [...prev, {
       id: city.id,
       name: city.name,

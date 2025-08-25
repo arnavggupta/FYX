@@ -2,14 +2,16 @@ import { NextResponse } from 'next/server';
 import db, { initDB } from '../../../../lib/db'; 
 
 
-function runQuery(query: string, params: any[] = []): Promise<any> {
+type DBParams = (string | number | null)[];
+
+function runQuery(query: string, params: DBParams = []): Promise<{ lastID: number; changes: number }> {
   return new Promise((resolve, reject) => {
     db.run(query, params, function (err) {
       if (err) {
         return reject(err);
       }
   
-      resolve({ changes: this.changes });
+      resolve({ lastID: this.lastID, changes: this.changes });
     });
   });
 }
@@ -41,7 +43,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
 
-  } catch (error: any) {
+  } catch (error ) {
     console.error('Delete city error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
