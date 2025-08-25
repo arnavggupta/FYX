@@ -1,29 +1,35 @@
 import { getRedis } from './redis';
+import { WeatherData,ForecastData } from '@/types/weatherType';
 
 const CACHE_DURATION = 10 * 60; // 10 minutes in seconds
 
 export class CacheManager {
-  private static getWeatherKey(city: string) {
+  private static getWeatherKey(city: string): string {
     return `weather:${city.toLowerCase()}`;
   }
 
-  private static getForecastKey(city: string) {
+  private static getForecastKey(city: string): string {
     return `forecast:${city.toLowerCase()}`;
   }
 
-  static async getWeather(city: string): Promise<any> {
+  static async getWeather(city: string): Promise<WeatherData | null> {
     try {
       const redis = getRedis();
       const key = this.getWeatherKey(city);
       const data = await redis.get(key);
-      return data ? JSON.parse(data) : null;
+      
+      if (!data) {
+        return null;
+      }
+    
+      return JSON.parse(data) as WeatherData;
     } catch (error) {
       console.error('Error getting weather cache:', error);
       return null;
     }
   }
 
-  static async setWeather(city: string, data: any): Promise<void> {
+  static async setWeather(city: string, data: WeatherData): Promise<void> {
     try {
       const redis = getRedis();
       const key = this.getWeatherKey(city);
@@ -33,19 +39,24 @@ export class CacheManager {
     }
   }
 
-  static async getForecast(city: string): Promise<any> {
+  
+  static async getForecast(city: string): Promise<ForecastData[] | null> {
     try {
       const redis = getRedis();
       const key = this.getForecastKey(city);
       const data = await redis.get(key);
-      return data ? JSON.parse(data) : null;
+
+      if (!data) {
+        return null;
+      }
+      return JSON.parse(data) as ForecastData[];
     } catch (error) {
       console.error('Error getting forecast cache:', error);
       return null;
     }
   }
 
-  static async setForecast(city: string, data: any): Promise<void> {
+  static async setForecast(city: string, data: ForecastData[]): Promise<void> {
     try {
       const redis = getRedis();
       const key = this.getForecastKey(city);
@@ -55,18 +66,18 @@ export class CacheManager {
     }
   }
 
+ 
   static async clear(): Promise<void> {
     try {
       const redis = getRedis();
-      // Get all keys and delete weather/forecast cache
       const weatherKeys = await redis.keys('weather:*');
       const forecastKeys = await redis.keys('forecast:*');
       
-      if (weatherKeys.length > 0) {
-        await redis.del(...weatherKeys);
-      }
-      if (forecastKeys.length > 0) {
-        await redis.del(...forecastKeys);
+      const keysToDelete = [...weatherKeys, ...forecastKeys];
+
+      if (keysToDelete.length > 0) {
+      // Deletes all found keys in a single, efficient operation
+        await redis.del(keysToDelete);
       }
     } catch (error) {
       console.error('Error clearing cache:', error);
