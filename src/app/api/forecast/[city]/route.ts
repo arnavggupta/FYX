@@ -6,11 +6,11 @@ import { initDB } from '../../../../lib/db';
 
 export async function GET(
   req: Request,
-  { params }: { params: { city: string } }
+  { params }: { params: Promise<{ city: string }> }
 ) {
   try {
     await initDB();
-    const { city } = params;
+    const { city } = await params;
 
     if (!city) {
       return NextResponse.json(
